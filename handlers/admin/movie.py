@@ -4,7 +4,8 @@ Supports: Caption parsing, Inline buttons, Minimal mode
 """
 
 from aiogram import Router, F, Bot
-from aiogram.types import Message, CallbackQuery
+from aiogram.fsm.state import StatesGroup, State
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,26 +29,32 @@ router = Router()
 
 
 # ==================== CHANNEL POST HANDLER ====================
+# ==================== YANGI STATE: KANAL POSTIDAN JANR QO‘ShISH ====================
+
+class AddGenresState(StatesGroup):
+    waiting_genres = State()
+
+
+# ==================== CHANNEL POST HANDLER (YANGILANGAN) ====================
 
 @router.channel_post(F.video | F.document | F.animation)
 async def handle_channel_video(message: Message, session: AsyncSession, bot: Bot):
     """
-    Handle video posted to movie channel
-    Auto-detects and processes new movies
+    Kanalga video yuborilganda ishlaydi
+    Caption bo‘lsa - avto parse, janrlar qo‘shiladi
+    Caption yo‘q bo‘lsa ham - kino saqlanadi + janr qo‘shish tugmasi chiqadi
     """
-    # Check if message is from movie channel
     if message.chat.id != config.MOVIE_CHANNEL_ID:
         return
-    
+
     file_id = get_file_id_from_message(message)
     if not file_id:
         return
-    
-    # Get thumbnail
+
+    # Thumbnail olish
     from utils import get_thumbnail_from_message
     thumbnail_file_id = get_thumbnail_from_message(message)
 
-    # Get thumbnail URL
     thumbnail_url = None
     if thumbnail_file_id:
         try:
@@ -58,52 +65,145 @@ async def handle_channel_video(message: Message, session: AsyncSession, bot: Bot
             pass
 
     caption = message.caption or ""
-
-    # Try to parse caption
     parsed = parse_movie_caption(caption)
+    added_genres =  []
 
-    if parsed["title"]:
-        # Caption has movie info - auto create
-        movie = await create_movie(
-            session,
-            title=parsed["title"],
-            file_id=file_id,
-            thumbnail_file_id=thumbnail_file_id,
-            thumbnail_url=thumbnail_url,
-            message_id=message.message_id,
-            channel_id=message.chat.id,
-            added_by=0,  # System added
-            year=parsed["year"],
-            language=parsed["language"],
-            quality=parsed["quality"],
-            duration=parsed["duration"],
-            caption=parsed["caption"],
-            category=detect_category_from_genres(parsed["genres"])
-        )
+    # Har holda kino yaratamiz (nom bo‘lmasa ham "Nomsiz kino" qo‘yamiz)
+    movie = await create_movie(
+        session,
+        title=parsed["title"] or "Nomsiz kino",
+        file_id=file_id,
+        thumbnail_file_id=thumbnail_file_id,
+        thumbnail_url=thumbnail_url,
+        message_id=message.message_id,
+        channel_id=message.chat.id,
+        added_by=0,  # System
+        year=parsed["year"],
+        language=parsed["language"],
+        quality=parsed["quality"],
+        duration=parsed["duration"],
+        caption=parsed["caption"],
+        category=detect_category_from_genres(added_genres)
+    )
 
-        # Add genres
-        for genre_name in parsed["genres"]:
-            genre = await get_genre_by_name(session, genre_name)
-            if genre:
-                await add_movie_genre(session, movie.id, genre.id)
+    # Caption’da janrlar bo‘lsa - qo‘shamiz
+    for genre_name in added_genres:
+        genre = await get_genre_by_name(session, genre_name.strip())
+        if genre:
+            await add_movie_genre(session, movie.id, genre.id)
 
-        # Notify in channel
-        await message.reply(
-            f"✅ Kino qo'shildi!\n🆔 Kod: <code>{movie.id}</code>",
-            parse_mode="HTML"
+    # Inline keyboard tayyorlash
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[])
+
+    if added_genres:
+        reply_text = (
+            f"✅ Kino qo'shildi!\n"
+            f"🆔 Kod: <code>{movie.id}</code>\n"
+            f"🎭 Janrlar: {', '.join(added_genres) if added_genres else 'Yo‘q'}"
         )
     else:
-        # No caption parsing possible - just notify
-        # Admin can manually add via FSM
-        await message.reply(
-            f"📽 Video aniqlandi.\n\n"
-            f"Kino qo'shish uchun caption formatida yuboring:\n"
-            f"<code>Kino nomi | 2024 | Action, Drama | O'zbek | 1080p</code>\n\n"
-            f"Yoki admin botda /add_movie buyrug'ini ishlating.",
-            parse_mode="HTML"
+        # Janr yo‘q - qo‘shish tugmasi
+        add_genre_btn = InlineKeyboardButton(
+            text="🎭 Janrlarni qo'shish",
+            callback_data=f"add_genres_to_movie:{movie.id}"
+        )
+        keyboard.inline_keyboard.append([add_genre_btn])
+
+        reply_text = (
+            f"✅ Kino qo'shildi (janrsiz)!\n"
+            f"🆔 Kod: <code>{movie.id}</code>\n\n"
+            f"Janrlar qo'shish uchun quyidagi tugmani bosing 👇"
         )
 
+    await message.reply(
+        reply_text,
+        parse_mode="HTML",
+        reply_markup=keyboard if keyboard.inline_keyboard else None
+    )
 
+
+# ==================== JANRLARNI KANAL POSTIDAN QO‘ShISH ====================
+
+@router.callback_query(F.data.startswith("add_genres_to_movie:"))
+async def start_add_genres(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    """Janr qo'shish jarayonini boshlash"""
+    if not await check_admin(session, callback.from_user.id):
+        await callback.answer("❌ Siz admin emassiz", show_alert=True)
+        return
+
+    movie_id = int(callback.data.split(":")[1])
+    movie = await get_movie(session, movie_id)
+    if not movie:
+        await callback.answer("Kino topilmadi", show_alert=True)
+        return
+
+    await state.update_data(movie_id=movie_id, selected_genres=[])
+    await state.set_state(AddGenresState.waiting_genres)
+
+    genres = await get_all_genres(session)
+
+    await callback.message.edit_text(
+        f"🎭 <b>{movie.title}</b> kinosi uchun janrlarni tanlang:\n\n"
+        f"Tanlangan: (yo‘q)\n\n"
+        f"Tugmalarni bosib tanlang, keyin «Saqlash» tugmasini bosing.",
+        parse_mode="HTML",
+        reply_markup=genres_select_keyboard(genres, [], "uz")
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("selgenre:"), AddGenresState.waiting_genres)
+async def toggle_genre_channel(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    data = await state.get_data()
+    selected = data.get("selected_genres", [])
+    genre_id = int(callback.data.split(":")[1])
+
+    if genre_id in selected:
+        selected.remove(genre_id)
+    else:
+        selected.append(genre_id)
+
+    await state.update_data(selected_genres=selected)
+
+    genres = await get_all_genres(session)
+
+    await callback.message.edit_reply_markup(
+        reply_markup=genres_select_keyboard(genres, selected, "uz")
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "save_genres", AddGenresState.waiting_genres)
+async def save_genres_channel(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    data = await state.get_data()
+    movie_id = data["movie_id"]
+    selected_genres = data.get("selected_genres", [])
+
+    if not selected_genres:
+        await callback.answer("Hech qanday janr tanlanmadi", show_alert=True)
+        return
+
+    for genre_id in selected_genres:
+        await add_movie_genre(session, movie_id, genre_id)
+
+    movie = await get_movie(session, movie_id)
+
+    await state.clear()
+
+    await callback.message.edit_text(
+        f"✅ Janrlar muvaffaqiyatli qo'shildi!\n\n"
+        f"🎥 <b>{movie.title}</b>\n"
+        f"🆔 ID: <code>{movie.id}</code>",
+        parse_mode="HTML"
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "cancel_add", AddGenresState.waiting_genres)
+async def cancel_add_genres(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.edit_text("❌ Janr qo'shish bekor qilindi.")
+    await callback.answer()
 # ==================== MANUAL ADD MOVIE ====================
 
 @router.message(Command("add_movie"))

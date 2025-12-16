@@ -12,7 +12,7 @@ from database.crud import (
     add_rating, get_user_rating
 )
 from handlers.user.start import check_and_request_subscription
-from keyboards import movie_keyboard, rating_keyboard
+from keyboards import movie_keyboard, rating_keyboard, main_menu_keyboard
 from locales import t
 from utils import extract_movie_id, format_duration
 
@@ -146,6 +146,19 @@ async def get_movie_by_code(message: Message, session: AsyncSession, bot: Bot):
             await message.answer(t("error_occurred", lang))
 
 
+@router.callback_query(F.data.startswith("back"))
+async def back_main(callback: CallbackQuery, session: AsyncSession, bot: Bot):
+    user, _ = await get_or_create_user(
+        session,
+        user_id=callback.from_user.id,
+        full_name=callback.from_user.full_name,
+        username=callback.from_user.username
+    )
+    lang = user.language if user else "uz"
+    await callback.message.edit_text(
+        'Bosh menu',
+        reply_markup=main_menu_keyboard(lang)
+    )
 
 @router.callback_query(F.data.startswith("movie:"))
 async def show_movie(callback: CallbackQuery, session: AsyncSession, bot: Bot):

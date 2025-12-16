@@ -268,7 +268,7 @@ def episodes_keyboard(
 
     # Back button
     back_text = "🔙 Orqaga" if lang == "uz" else "🔙 Назад" if lang == "ru" else "🔙 Back"
-    builder.button(text=back_text, callback_data=f"movie:{movie_id}")
+    builder.button(text=back_text, callback_data=f"back")
 
     builder.adjust(1)
 
@@ -318,7 +318,7 @@ def movies_list_keyboard(
         if movie.total_episodes > 0:
             builder.button(
                 text=f"📺 {title} ({movie.total_episodes} qism) {movie.rating_display}",
-                callback_data=f"{callback_prefix}:{movie.id}"
+                callback_data=f"episodes:{movie.id}"
             )
         else:
             builder.button(

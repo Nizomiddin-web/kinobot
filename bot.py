@@ -143,6 +143,7 @@ async def main():
             bot,
             allowed_updates=[
                 "message",
+
                 "callback_query",
                 "inline_query",
                 "channel_post"

@@ -179,7 +179,7 @@ async def send_all_episodes(callback: CallbackQuery, session: AsyncSession, bot:
 
     # Increment views
     await increment_movie_views(session, movie.id)
-    await add_to_history(session, callback.from_user.id, movie.id)
+    # await add_to_history(session, callback.from_user.id, movie.id)
 
     # Send episodes one by one
     sent = 0
