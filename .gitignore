@@ -1,0 +1,81 @@
+# ===============================
+# Python
+# ===============================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ===============================
+# Virtual environment
+# ===============================
+venv/
+.env/
+.env.*
+.venv/
+virtualenv/
+pip-wheel-metadata/
+
+# ===============================
+# Environment variables
+# ===============================
+.env
+.env.local
+
+# ===============================
+# Logs
+# ===============================
+*.log
+logs/
+
+# ===============================
+# Build / Distribution
+# ===============================
+build/
+dist/
+eggs/
+*.egg-info/
+.eggs/
+
+# ===============================
+# Pytest / Coverage
+# ===============================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+
+# ===============================
+# Jupyter Notebook
+# ===============================
+.ipynb_checkpoints
+
+# ===============================
+# IDE / Editor
+# ===============================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ===============================
+# OS files
+# ===============================
+.DS_Store
+Thumbs.db
+
+# ===============================
+# Django (agar ishlatilsa)
+# ===============================
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/
+
+# ===============================
+# Celery / Redis
+# ===============================
+celerybeat-schedule
+celerybeat.pid
