@@ -1,6 +1,7 @@
 """
 Admin handlers - Serial and Episode management
 """
+import re
 
 from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery
@@ -91,12 +92,11 @@ async def process_serial_title(message: Message, state: FSMContext):
     await state.set_state(SerialAddState.waiting_year)
 
     await message.answer(
-        "📅 Yilni tanlang yoki kiriting:",
+        "📅 Yilni tanlang yoki yozing:",
         reply_markup=year_keyboard(lang)
     )
 
-
-@router.callback_query(F.data.startswith("year:"), SerialAddState.waiting_year)
+@router.callback_query(F.data.stra, SerialAddState.waiting_year)
 async def process_serial_year(callback: CallbackQuery, state: FSMContext):
     """Process serial year"""
     data = await state.get_data()
@@ -111,6 +111,33 @@ async def process_serial_year(callback: CallbackQuery, state: FSMContext):
         reply_markup=movie_language_keyboard(lang)
     )
     await callback.answer()
+
+@router.message(F.text, SerialAddState.waiting_year)
+async def process_serial_year(message: Message, state: FSMContext):
+    """Process serial year"""
+    year = message.text.strip()
+    data = await state.get_data()
+    lang = data.get("lang", "uz")
+    if re.fullmatch(r"\d{4}", year):
+        try:
+            year = int(year)
+            if 1900<=year<=2100:
+                await state.update_data(year=year)
+                await state.set_state(SerialAddState.waiting_language)
+
+                await message.answer(
+                    "🌐 Tilni tanlang:",
+                    reply_markup=movie_language_keyboard(lang)
+                )
+            else:
+                await message.answer("Yil xato kiritildi qaytadan kiriting!")
+
+        except ValueError:
+            await message.answer("Yil xato kiritildi qaytadan yozing!")
+
+
+
+
 
 
 @router.callback_query(F.data.startswith("mlang:"), SerialAddState.waiting_language)

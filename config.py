@@ -77,6 +77,7 @@ INTERFACE_LANGUAGES = {
 # Default genres
 DEFAULT_GENRES = [
     {"name": "action", "name_uz": "Jangari", "name_ru": "Боевик", "name_en": "Action"},
+    {"name": "detektiv", "name_uz": "Detektiv", "name_ru": "Detektive", "name_en": "Detektive"},
     {"name": "comedy", "name_uz": "Komediya", "name_ru": "Комедия", "name_en": "Comedy"},
     {"name": "drama", "name_uz": "Drama", "name_ru": "Драма", "name_en": "Drama"},
     {"name": "horror", "name_uz": "Qo'rqinchli", "name_ru": "Ужасы", "name_en": "Horror"},
