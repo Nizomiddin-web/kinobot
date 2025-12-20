@@ -34,10 +34,11 @@ def main_menu_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
                    switch_inline_query_current_chat="!serial")
 
     # Row 3: More categories
-    # builder.button(text="🎌 Anime",
-    #                callback_data="cat:Anime")
-    # builder.button(text="🧸 Multfilm" if lang == "uz" else "🧸 Мультфильм" if lang == "ru" else "🧸 Cartoon",
-    #                callback_data="cat:Multfilm")
+    # Row 3: More categories
+    builder.button(text="🎌 Anime",
+                   switch_inline_query_current_chat="!anime")
+    builder.button(text="🧸 Multfilm" if lang == "uz" else "🧸 Мультфильм" if lang == "ru" else "🧸 Cartoon",
+                   switch_inline_query_current_chat="!multfilm")
 
     # Row 4: Top and New
     builder.button(text="🏆 Top" if lang == "uz" else "🏆 Топ" if lang == "ru" else "🏆 Top",
@@ -461,6 +462,19 @@ def quality_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 
 
 def category_select_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """Category selection for adding movie"""
+    builder = InlineKeyboardBuilder()
+
+    for cat in config.CATEGORIES:
+        emoji = {"Kino": "🎬","Anime": "🎌", "Multfilm": "🧸"}.get(cat, "🎬")
+        builder.button(text=f"{emoji} {cat}", callback_data=f"mcat:{cat}")
+
+    builder.button(text=t("btn_cancel", lang), callback_data="cancel_add")
+
+    builder.adjust(2, 2, 1)
+    return builder.as_markup()
+
+def category_select_keyboard_2(lang: str = "uz") -> InlineKeyboardMarkup:
     """Category selection for adding movie"""
     builder = InlineKeyboardBuilder()
 

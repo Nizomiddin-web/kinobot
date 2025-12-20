@@ -96,7 +96,7 @@ class Movie(Base):
     @property
     def is_series(self) -> bool:
         """Check if this is a series"""
-        return self.category in ["Serial", "Anime"] and self.total_episodes > 0
+        return self.category in ["Serial", "Anime", "Multfilm"] and self.total_episodes > 0
 
     def get_title(self, lang: str = "uz") -> str:
         """Get title in specified language"""

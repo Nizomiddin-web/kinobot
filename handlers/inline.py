@@ -148,6 +148,46 @@ async def process_inline_query(inline_query: InlineQuery, session: AsyncSession,
             for movie in movies:
                 results.append(build_movie_result(movie, lang, bot_username))
 
+    # ==================== ANIME ====================
+    elif query == "!anime" or query.startswith("!anime "):
+        movies = await get_movies_by_category(session, "Anime", limit=50)
+
+        if not movies:
+            results.append(
+                InlineQueryResultArticle(
+                    id="empty_anime",
+                    title="🎌 Anime yo'q" if lang == "uz" else "🎌 Нет аниме",
+                    description="Hali anime qo'shilmagan",
+                    input_message_content=InputTextMessageContent(
+                        message_text="Anime ro'yxati bo'sh"
+                    ),
+                    thumbnail_url="https://placehold.co/300x450/1a1a2e/ffffff?text=🎌"
+                )
+            )
+        else:
+            for movie in movies:
+                results.append(build_movie_result(movie, lang, bot_username))
+
+    # ==================== MULTFILM ====================
+    elif query == "!multfilm" or query.startswith("!multfilm "):
+        movies = await get_movies_by_category(session, "Multfilm", limit=50)
+
+        if not movies:
+            results.append(
+                InlineQueryResultArticle(
+                    id="empty_multfilm",
+                    title="🧸 Multfilmlar yo'q" if lang == "uz" else "🧸 Нет мультфильмов",
+                    description="Hali multfilmlar qo'shilmagan",
+                    input_message_content=InputTextMessageContent(
+                        message_text="Multfilmlar ro'yxati bo'sh"
+                    ),
+                    thumbnail_url="https://placehold.co/300x450/1a1a2e/ffffff?text=🧸"
+                )
+            )
+        else:
+            for movie in movies:
+                results.append(build_movie_result(movie, lang, bot_username))
+
     # ==================== TOP ====================
     elif query == "!top" or query.startswith("!top "):
         movies = await get_top_movies(session, limit=50)

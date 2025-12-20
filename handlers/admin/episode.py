@@ -8,6 +8,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import config
@@ -30,6 +31,7 @@ router = Router()
 class SerialAddState(StatesGroup):
     """States for adding serial"""
     waiting_title = State()
+    waiting_category = State()
     waiting_year = State()
     waiting_language = State()
     waiting_quality = State()
@@ -66,11 +68,11 @@ async def cmd_add_serial(message: Message, state: FSMContext, session: AsyncSess
         return
 
     await state.set_state(SerialAddState.waiting_title)
-    await state.update_data(lang=lang, category="Serial")
+    await state.update_data(lang=lang)
 
     await message.answer(
-        "📺 <b>Yangi serial qo'shish</b>\n\n"
-        "Serial nomini kiriting:",
+        "📺 <b>Yangi serial/anime/multfilm qo'shish</b>\n\n"
+        "Nomini kiriting:",
         parse_mode="HTML",
         reply_markup=cancel_keyboard(lang)
     )
@@ -89,15 +91,40 @@ async def process_serial_title(message: Message, state: FSMContext):
         return
 
     await state.update_data(title=title)
-    await state.set_state(SerialAddState.waiting_year)
+    await state.set_state(SerialAddState.waiting_category)
+
+    # Category selection keyboard
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📺 Serial", callback_data="scat:Serial")
+    builder.button(text="🎌 Anime", callback_data="scat:Anime")
+    builder.button(text="🧸 Multfilm", callback_data="scat:Multfilm")
+    builder.adjust(1)
 
     await message.answer(
+        "Kategoriyani tanlang:",
+        reply_markup=builder.as_markup()
+    )
+
+
+@router.callback_query(F.data.startswith("scat:"), SerialAddState.waiting_category)
+async def process_serial_category(callback: CallbackQuery, state: FSMContext):
+    """Process serial category"""
+    data = await state.get_data()
+    lang = data.get("lang", "uz")
+
+    category = callback.data.split(":")[1]
+    await state.update_data(category=category)
+    await state.set_state(SerialAddState.waiting_year)
+
+    await callback.message.edit_text(
         "📅 Yilni tanlang yoki yozing:",
         reply_markup=year_keyboard(lang)
     )
+    await callback.answer()
 
-@router.callback_query(F.data.stra, SerialAddState.waiting_year)
-async def process_serial_year(callback: CallbackQuery, state: FSMContext):
+
+@router.callback_query(F.data.startswith("year:"), SerialAddState.waiting_year)
+async def process_serial_year_callback(callback: CallbackQuery, state: FSMContext):
     """Process serial year"""
     data = await state.get_data()
     lang = data.get("lang", "uz")
@@ -269,7 +296,7 @@ async def save_serial(message: Message, state: FSMContext, session: AsyncSession
         year=data.get("year", 2024),
         language=data.get("movie_language", "O'zbek"),
         quality=data.get("quality", "1080p"),
-        category="Serial",
+        category=data.get("category", "Serial"),
         thumbnail_url=data.get("poster_url"),
         thumbnail_file_id=data.get("thumbnail_file_id"),
         total_episodes=0,
@@ -311,7 +338,7 @@ async def cmd_add_episode(message: Message, state: FSMContext, session: AsyncSes
         serial_id = parts[1]
         if serial_id.isdigit():
             serial = await get_movie(session, int(serial_id))
-            if serial and serial.category in ["Serial", "Anime"]:
+            if serial and serial.category in ["Serial", "Anime", "Multfilm"]:
                 await state.set_state(EpisodeAddState.waiting_season)
                 await state.update_data(
                     lang=lang,
@@ -358,7 +385,7 @@ async def process_episode_serial_id(message: Message, state: FSMContext, session
         await message.answer("❌ Serial topilmadi")
         return
 
-    if serial.category not in ["Serial", "Anime"]:
+    if serial.category not in ["Serial", "Anime", "Multfilm"]:
         await message.answer("❌ Bu serial emas. Kategoriyasi: " + serial.category)
         return
 

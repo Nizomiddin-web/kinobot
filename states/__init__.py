@@ -12,6 +12,7 @@ class SearchState(StatesGroup):
 
 class MovieAddState(StatesGroup):
     """States for adding movie"""
+    waiting_video = State()
     waiting_title = State()
     waiting_year = State()
     waiting_language = State()

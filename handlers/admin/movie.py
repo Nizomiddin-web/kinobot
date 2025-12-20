@@ -216,14 +216,93 @@ async def cmd_add_movie(message: Message, state: FSMContext, session: AsyncSessi
         await message.answer(t("not_admin", lang))
         return
 
-    await state.set_state(MovieAddState.waiting_title)
+    await state.set_state(MovieAddState.waiting_video)
     await state.update_data(lang=lang)
 
     await message.answer(
         "📽 Kino qo'shish\n\n"
-        "Avval kanalga video yuboring, so'ng uning message_id sini kiriting.\n"
-        "Yoki to'g'ridan-to'g'ri video yuboring.\n\n"
-        "Kino nomini kiriting:",
+        "Videoni yuboring (yoki kanaldan forward qiling):",
+        reply_markup=cancel_keyboard(lang)
+    )
+
+
+@router.message(MovieAddState.waiting_video, F.video | F.document | F.animation)
+async def process_video_first(message: Message, state: FSMContext, session: AsyncSession, bot: Bot):
+    """Process video first"""
+    data = await state.get_data()
+    lang = data.get("lang", "uz")
+
+    file_id = get_file_id_from_message(message)
+
+    if not file_id:
+        await message.answer(t("invalid_input", lang))
+        return
+
+    # Get thumbnail
+    from utils import get_thumbnail_from_message
+    thumbnail_file_id = get_thumbnail_from_message(message)
+
+    # Get thumbnail URL
+    thumbnail_url = None
+    if thumbnail_file_id:
+        try:
+            file = await bot.get_file(thumbnail_file_id)
+            if file.file_path:
+                thumbnail_url = f"https://api.telegram.org/file/bot{config.BOT_TOKEN}/{file.file_path}"
+        except:
+            pass
+
+    # Forward to channel
+    try:
+        forwarded = await message.forward(config.MOVIE_CHANNEL_ID)
+
+        await state.update_data(
+            file_id=file_id,
+            thumbnail_file_id=thumbnail_file_id,
+            thumbnail_url=thumbnail_url,
+            message_id=forwarded.message_id,
+            channel_id=config.MOVIE_CHANNEL_ID
+        )
+
+        await state.set_state(MovieAddState.waiting_title)
+
+        await message.answer(
+            "✅ Video qabul qilindi.\n\nEndi kino nomini kiriting:",
+            reply_markup=cancel_keyboard(lang)
+        )
+    except Exception as e:
+        await message.answer(
+            f"❌ Videoni kanalga yuborishda xato: {e}\n"
+            f"Iltimos qaytadan urinib ko'ring."
+        )
+
+
+@router.message(MovieAddState.waiting_video, F.forward_from_chat)
+async def process_video_forward_first(message: Message, state: FSMContext, session: AsyncSession):
+    """Process forwarded video first"""
+    data = await state.get_data()
+    lang = data.get("lang", "uz")
+
+    file_id = get_file_id_from_message(message)
+
+    if not file_id:
+        await message.answer(t("invalid_input", lang))
+        return
+
+    # Use original message info
+    message_id = message.forward_from_message_id
+    channel_id = message.forward_from_chat.id
+
+    await state.update_data(
+        file_id=file_id,
+        message_id=message_id,
+        channel_id=channel_id
+    )
+
+    await state.set_state(MovieAddState.waiting_title)
+
+    await message.answer(
+        "✅ Video qabul qilindi.\n\nEndi kino nomini kiriting:",
         reply_markup=cancel_keyboard(lang)
     )
 
@@ -249,53 +328,7 @@ async def process_title(message: Message, state: FSMContext, session: AsyncSessi
     )
 
 
-@router.message(MovieAddState.waiting_title, F.video | F.document)
-async def process_video_direct(message: Message, state: FSMContext, session: AsyncSession, bot: Bot):
-    """Process directly sent video"""
-    data = await state.get_data()
-    lang = data.get("lang", "uz")
 
-    file_id = get_file_id_from_message(message)
-
-    if not file_id:
-        await message.answer(t("invalid_input", lang))
-        return
-
-    # Get thumbnail
-    from utils import get_thumbnail_from_message
-    thumbnail_file_id = get_thumbnail_from_message(message)
-
-    # Get thumbnail URL
-    thumbnail_url = None
-    if thumbnail_file_id:
-        try:
-            file = await bot.get_file(thumbnail_file_id)
-            if file.file_path:
-                thumbnail_url = f"https://api.telegram.org/file/bot{config.BOT_TOKEN}/{file.file_path}"
-        except:
-            pass
-
-    # Forward to channel first
-    try:
-        forwarded = await message.forward(config.MOVIE_CHANNEL_ID)
-
-        await state.update_data(
-            file_id=file_id,
-            thumbnail_file_id=thumbnail_file_id,
-            thumbnail_url=thumbnail_url,
-            message_id=forwarded.message_id,
-            channel_id=config.MOVIE_CHANNEL_ID
-        )
-
-        await message.answer(
-            "✅ Video kanalga yuborildi.\n\nEndi kino nomini kiriting:",
-            reply_markup=cancel_keyboard(lang)
-        )
-    except Exception as e:
-        await message.answer(
-            f"❌ Videoni kanalga yuborishda xato: {e}\n"
-            f"Avval videoni kanalga qo'lda yuboring."
-        )
 
 
 @router.callback_query(F.data.startswith("year:"), MovieAddState.waiting_year)

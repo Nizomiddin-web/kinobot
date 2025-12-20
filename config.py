@@ -48,7 +48,7 @@ class Config:
     ])
     
     CATEGORIES: List[str] = field(default_factory=lambda: [
-        "Kino", "Serial", "Anime", "Multfilm"
+        "Kino", "Anime", "Multfilm"
     ])
     
     @property
